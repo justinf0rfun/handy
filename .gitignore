@@ -1,0 +1,10 @@
+.build/
+.codex/
+dist/
+prototype/dist/
+prototype/node_modules/
+prototype/screenshots/
+native-verification/*.png
+native-verification/*.mov
+.DS_Store
+*.xcuserstate

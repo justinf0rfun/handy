@@ -1,0 +1,20 @@
+{
+  "name": "handy-gsap-prototype",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "screenshot": "node scripts/screenshot.mjs"
+  },
+  "dependencies": {
+    "gsap": "^3.13.0",
+    "vite": "^5.4.19",
+    "typescript": "^5.8.3"
+  },
+  "devDependencies": {
+    "playwright": "^1.52.0"
+  }
+}
