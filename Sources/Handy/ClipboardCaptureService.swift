@@ -151,12 +151,12 @@ final class ClipboardCaptureService {
         ContextAssetWriter.persistThumbnail(image, id: id, repository: repository)
     }
 
-    static func normalizedStoredImageFile(_ item: ContextItem, repository: any ContextRepository) -> ContextItem? {
-        guard item.type == .file else { return nil }
+    nonisolated static func normalizedStoredImageFile(_ item: ContextItem, repository: any ContextRepository) -> ContextItem? {
+        guard item.type == .file, item.thumbnailPath == nil else { return nil }
         let url = URL(fileURLWithPath: item.preview)
         guard isSupportedImageFile(url), let image = NSImage(contentsOf: url) else { return nil }
         let thumbnailPath = ContextAssetWriter.persistThumbnail(image, id: item.id, repository: repository)
-        return ContextItem(
+        let normalized = ContextItem(
             id: item.id,
             type: .image,
             title: item.title,
@@ -170,9 +170,11 @@ final class ClipboardCaptureService {
             sourceBundleIdentifier: item.sourceBundleIdentifier,
             sourceIconPath: item.sourceIconPath
         )
+        _ = try? repository.update(normalized)
+        return normalized
     }
 
-    static func imageFileItem(for url: URL, source: CaptureSource, repository: any ContextRepository) -> ContextItem? {
+    nonisolated static func imageFileItem(for url: URL, source: CaptureSource, repository: any ContextRepository) -> ContextItem? {
         guard isSupportedImageFile(url), let image = NSImage(contentsOf: url) else { return nil }
         let id = makeID()
         let thumbnailPath = ContextAssetWriter.persistThumbnail(image, id: id, repository: repository)
@@ -192,7 +194,7 @@ final class ClipboardCaptureService {
         )
     }
 
-    private static func isSupportedImageFile(_ url: URL) -> Bool {
+    nonisolated private static func isSupportedImageFile(_ url: URL) -> Bool {
         ["png", "jpg", "jpeg", "heic", "webp", "gif", "tif", "tiff", "bmp"].contains(url.pathExtension.lowercased())
     }
 
@@ -212,7 +214,7 @@ final class ClipboardCaptureService {
         Self.makeID()
     }
 
-    private static func makeID() -> String {
+    nonisolated private static func makeID() -> String {
         "ctx-clip-\(Int(Date().timeIntervalSince1970 * 1000))-\(UUID().uuidString.prefix(6))"
     }
 

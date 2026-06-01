@@ -2,6 +2,12 @@ import AppKit
 import HandyCore
 import SwiftUI
 
+private struct PageQueryResult: Sendable {
+    let items: [ContextItem]
+    let hasMore: Bool
+    let counts: [ContextFilter: Int]?
+}
+
 @MainActor
 final class SummonPanelController {
     private let repository: any ContextRepository
@@ -13,7 +19,8 @@ final class SummonPanelController {
     private var previousApp: NSRunningApplication?
     private var localKeyMonitor: Any?
     private var currentPanelSize = HandyMetric.preferredPanelSize
-    private var pendingQueryReload: DispatchWorkItem?
+    private var pendingQueryTask: Task<Void, Never>?
+    private var queryRevision = 0
     private let pageSize = 24
 
     init(
@@ -66,65 +73,141 @@ final class SummonPanelController {
     }
 
     func reloadContext() {
-        pendingQueryReload?.cancel()
-        reloadFirstPage()
+        pendingQueryTask?.cancel()
+        reloadFirstPage(recomputeCounts: true)
     }
 
-    private static func normalizedItems(_ items: [ContextItem], repository: any ContextRepository) -> [ContextItem] {
+    nonisolated private static func normalizedItems(_ items: [ContextItem], repository: any ContextRepository) -> [ContextItem] {
         items.map { item in
             ClipboardCaptureService.normalizedStoredImageFile(item, repository: repository) ?? item
         }
     }
 
     private func deleteContextItem(_ id: String) {
-        pendingQueryReload?.cancel()
+        pendingQueryTask?.cancel()
         _ = try? repository.delete(id: id)
-        reloadFirstPage()
+        reloadFirstPage(recomputeCounts: true)
     }
 
     private func handleQueryChanged(_ reason: PanelState.QueryChangeReason) {
-        pendingQueryReload?.cancel()
+        pendingQueryTask?.cancel()
         switch reason {
-        case .filter, .clearSearch:
-            reloadFirstPage()
+        case .filter:
+            reloadFirstPage(recomputeCounts: false)
+        case .clearSearch:
+            reloadFirstPage(recomputeCounts: true)
         case .search:
-            let workItem = DispatchWorkItem { [weak self] in
-                self?.reloadFirstPage()
-            }
-            pendingQueryReload = workItem
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: workItem)
+            reloadFirstPage(recomputeCounts: true, debounceNanoseconds: 120_000_000)
         }
     }
 
-    private func reloadFirstPage() {
-        pendingQueryReload?.cancel()
-        pendingQueryReload = nil
-        do {
-            let page = try repository.loadPage(offset: 0, limit: pageSize, filter: state.activeFilter, search: state.search)
-            state.replaceItems(
-                Self.normalizedItems(page.items, repository: repository),
-                hasMore: page.hasMore,
-                counts: Self.counts(search: state.search, repository: repository)
-            )
-        } catch {
-            state.replaceItems([], hasMore: false, counts: [:])
+    private func reloadFirstPage(recomputeCounts: Bool, debounceNanoseconds: UInt64 = 0) {
+        pendingQueryTask?.cancel()
+        queryRevision += 1
+
+        let revision = queryRevision
+        let filter = state.activeFilter
+        let search = state.search
+        let pageSize = pageSize
+        let repository = repository
+
+        pendingQueryTask = Task { [weak self] in
+            if debounceNanoseconds > 0 {
+                try? await Task.sleep(nanoseconds: debounceNanoseconds)
+            }
+            guard !Task.isCancelled else { return }
+
+            let result = await Task.detached(priority: .userInitiated) {
+                Self.loadFirstPageResult(
+                    repository: repository,
+                    pageSize: pageSize,
+                    filter: filter,
+                    search: search,
+                    recomputeCounts: recomputeCounts
+                )
+            }.value
+
+            guard !Task.isCancelled else { return }
+            self?.applyFirstPageResult(result, revision: revision)
         }
     }
 
     private func loadNextPage() {
-        do {
-            let page = try repository.loadPage(offset: state.items.count, limit: pageSize, filter: state.activeFilter, search: state.search)
-            state.appendItems(
-                Self.normalizedItems(page.items, repository: repository),
-                hasMore: page.hasMore,
-                counts: Self.counts(search: state.search, repository: repository)
-            )
-        } catch {
-            state.markLoadingMore(false)
+        let revision = queryRevision
+        let offset = state.items.count
+        let filter = state.activeFilter
+        let search = state.search
+        let pageSize = pageSize
+        let repository = repository
+
+        Task { [weak self] in
+            let result = await Task.detached(priority: .utility) {
+                Self.loadPageResult(
+                    repository: repository,
+                    offset: offset,
+                    pageSize: pageSize,
+                    filter: filter,
+                    search: search,
+                    recomputeCounts: false
+                )
+            }.value
+
+            guard let self, revision == self.queryRevision else { return }
+            if let result {
+                self.state.appendItems(result.items, hasMore: result.hasMore, counts: nil)
+            } else {
+                self.state.markLoadingMore(false)
+            }
         }
     }
 
-    private static func counts(search: String, repository: any ContextRepository) -> [ContextFilter: Int] {
+    nonisolated private static func loadFirstPageResult(
+        repository: any ContextRepository,
+        pageSize: Int,
+        filter: ContextFilter,
+        search: String,
+        recomputeCounts: Bool
+    ) -> PageQueryResult? {
+        loadPageResult(
+            repository: repository,
+            offset: 0,
+            pageSize: pageSize,
+            filter: filter,
+            search: search,
+            recomputeCounts: recomputeCounts
+        )
+    }
+
+    nonisolated private static func loadPageResult(
+        repository: any ContextRepository,
+        offset: Int,
+        pageSize: Int,
+        filter: ContextFilter,
+        search: String,
+        recomputeCounts: Bool
+    ) -> PageQueryResult? {
+        do {
+            let page = try repository.loadPage(offset: offset, limit: pageSize, filter: filter, search: search)
+            return PageQueryResult(
+                items: normalizedItems(page.items, repository: repository),
+                hasMore: page.hasMore,
+                counts: recomputeCounts ? counts(search: search, repository: repository) : nil
+            )
+        } catch {
+            return nil
+        }
+    }
+
+    private func applyFirstPageResult(_ result: PageQueryResult?, revision: Int) {
+        guard revision == queryRevision else { return }
+        if let result {
+            state.replaceItems(result.items, hasMore: result.hasMore, counts: result.counts)
+        } else {
+            state.replaceItems([], hasMore: false, counts: [:])
+        }
+    }
+
+    nonisolated private static func counts(search: String, repository: any ContextRepository) -> [ContextFilter: Int] {
         Dictionary(uniqueKeysWithValues: ContextFilter.allCases.map { filter in
             (filter, (try? repository.countItems(filter: filter, search: search)) ?? 0)
         })

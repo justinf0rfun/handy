@@ -826,7 +826,7 @@ private struct VisualAssetPreview: View {
 
     private func imagePreview(size: CGSize) -> some View {
         ZStack {
-            if let thumbnail = item.thumbnailPath.flatMap(NSImage.init(contentsOfFile:)) {
+            if let thumbnail = item.thumbnailPath.flatMap(CachedImageLoader.image(contentsOfFile:)) {
                 Image(nsImage: thumbnail)
                     .resizable()
                     .scaledToFill()
@@ -872,7 +872,7 @@ private struct VisualAssetPreview: View {
 
     private func urlPreview(size: CGSize) -> some View {
         ZStack(alignment: .topLeading) {
-            if let thumbnail = item.thumbnailPath.flatMap(NSImage.init(contentsOfFile:)) {
+            if let thumbnail = item.thumbnailPath.flatMap(CachedImageLoader.image(contentsOfFile:)) {
                 Image(nsImage: thumbnail)
                     .resizable()
                     .scaledToFill()
@@ -938,7 +938,7 @@ private struct SourceGlyph: View {
 
     @ViewBuilder
     private var glyph: some View {
-        if let icon = item.sourceIconPath.flatMap(NSImage.init(contentsOfFile:)) {
+        if let icon = item.sourceIconPath.flatMap(CachedImageLoader.image(contentsOfFile:)) {
             Image(nsImage: icon)
                 .resizable()
                 .scaledToFit()

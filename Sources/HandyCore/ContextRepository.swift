@@ -78,7 +78,7 @@ public final class CoreDataContextRepository: ContextRepository, @unchecked Send
             fatalError("Failed to load Handy Core Data store: \(loadError)")
         }
 
-        self.context = container.viewContext
+        self.context = container.newBackgroundContext()
         context.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
         context.automaticallyMergesChangesFromParent = true
     }

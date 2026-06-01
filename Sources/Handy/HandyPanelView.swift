@@ -15,10 +15,9 @@ struct HandyPanelView: View {
     private var innerWidth: CGFloat { panelSize.width - (padding * 2) - 2 }
     private var cardHeight: CGFloat { galleryHeight - (shortLayout ? 30 : 44) }
     private var headerHeight: CGFloat { shortLayout ? 34 : 40 }
-    private var searchHeight: CGFloat { shortLayout ? 52 : 56 }
-    private var searchWidth: CGFloat { min(innerWidth - (shortLayout ? 8 : 14), shortLayout ? 520 : 560) }
-    private var searchPillGap: CGFloat { shortLayout ? 16 : 18 }
-    private var pillHeight: CGFloat { shortLayout ? 30 : 34 }
+    private var searchSurfaceHeight: CGFloat { shortLayout ? 116 : 122 }
+    private var searchFieldHeight: CGFloat { shortLayout ? 44 : 48 }
+    private var pillHeight: CGFloat { shortLayout ? 34 : 36 }
     private var goalHeight: CGFloat { shortLayout ? 50 : 67 }
     private var composeHeight: CGFloat { shortLayout ? 50 : 63 }
     private var galleryHeight: CGFloat { shortLayout ? 250 : 330 }
@@ -137,7 +136,7 @@ struct HandyPanelView: View {
     }
 
     private var searchAndPillsHeight: CGFloat {
-        searchHeight + searchPillGap + pillHeight
+        searchSurfaceHeight
     }
 
     private var galleryTop: CGFloat {
@@ -145,7 +144,7 @@ struct HandyPanelView: View {
     }
 
     private var peekTop: CGFloat {
-        max(padding, galleryTop - searchAndPillsHeight - goalHeight - (gap * 2) + (searchHeight / 2))
+        max(padding, galleryTop - searchAndPillsHeight - goalHeight - (gap * 2) + (searchFieldHeight / 2))
     }
 
     private var draftTop: CGFloat {
@@ -182,25 +181,34 @@ struct HandyPanelView: View {
     }
 
     private var searchAndPills: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 14) {
             SearchRowView(state: state, isFocused: focused == .search)
                 .focused($focused, equals: .search)
-                .frame(width: searchWidth, height: searchHeight, alignment: .leading)
-
-            hitTestGap
+                .frame(height: searchFieldHeight, alignment: .leading)
 
             PillRowView(state: state)
-                .frame(width: innerWidth, height: pillHeight)
+                .frame(maxWidth: .infinity, minHeight: pillHeight, maxHeight: pillHeight, alignment: .leading)
         }
-        .frame(width: innerWidth, height: searchHeight + searchPillGap + pillHeight, alignment: .topLeading)
-    }
-
-    private var hitTestGap: some View {
-        Rectangle()
-            .fill(Color.black.opacity(0.001))
-            .frame(width: innerWidth, height: searchPillGap)
-            .allowsHitTesting(true)
-            .onTapGesture {}
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .frame(width: innerWidth, height: searchSurfaceHeight, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.white.opacity(0.060))
+                .overlay(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.070), Color.white.opacity(0.030), Color.clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.white.opacity(0.115), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.22), radius: 24, x: 0, y: 14)
     }
 }
 

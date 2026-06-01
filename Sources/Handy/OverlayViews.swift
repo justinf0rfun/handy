@@ -161,11 +161,11 @@ struct ContextPeekMedia: View {
     }
 
     private var imageForItem: NSImage? {
-        if let thumbnail = item.thumbnailPath.flatMap(NSImage.init(contentsOfFile:)) {
+        if let thumbnail = item.thumbnailPath.flatMap(CachedImageLoader.image(contentsOfFile:)) {
             return thumbnail
         }
         if item.type == .image {
-            return NSImage(contentsOfFile: item.preview)
+            return CachedImageLoader.image(contentsOfFile: item.preview)
         }
         return nil
     }

@@ -9,29 +9,39 @@ struct SearchRowView: View {
         HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(HandyVisualTokens.Colors.textPrimary.opacity(isFocused ? 0.68 : 0.50))
+                .foregroundStyle(HandyVisualTokens.Colors.textPrimary.opacity(isFocused ? 0.66 : 0.46))
                 .frame(width: 22)
 
-            TextField("Search context", text: $state.search)
-                .textFieldStyle(.plain)
-                .font(.handyDisplay(size: 16))
-                .foregroundStyle(HandyVisualTokens.Colors.textPrimary)
-                .onSubmit {
-                    if state.draft != nil {
-                        state.copyDraft()
-                    } else {
-                        state.handleSearchEnter()
-                    }
+            ZStack(alignment: .leading) {
+                if state.search.isEmpty {
+                    Text("Search...")
+                        .font(.handyDisplay(size: 18))
+                        .foregroundStyle(HandyVisualTokens.Colors.textPrimary.opacity(0.42))
+                        .allowsHitTesting(false)
                 }
-                .onChange(of: state.search) { _, _ in state.searchChanged() }
-                .disabled(state.peekItemID != nil || state.draft != nil)
-                .accessibilityLabel("Search recent context")
-                .frame(maxWidth: .infinity)
+
+                TextField("", text: $state.search)
+                    .textFieldStyle(.plain)
+                    .font(.handyDisplay(size: 18))
+                    .foregroundStyle(HandyVisualTokens.Colors.textPrimary.opacity(0.92))
+                    .onSubmit {
+                        if state.draft != nil {
+                            state.copyDraft()
+                        } else {
+                            state.handleSearchEnter()
+                        }
+                    }
+                    .onChange(of: state.search) { _, _ in state.searchChanged() }
+                    .disabled(state.peekItemID != nil || state.draft != nil)
+                    .accessibilityLabel("Search recent context")
+            }
+            .frame(maxWidth: .infinity)
 
             if !state.search.isEmpty {
                 Button(action: state.clearSearch) {
                     Image(systemName: "xmark")
                         .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(HandyVisualTokens.Colors.textPrimary.opacity(0.66))
                         .frame(width: 28, height: 28)
                 }
                 .buttonStyle(PanelIconButtonStyle())
@@ -39,24 +49,7 @@ struct SearchRowView: View {
                 .accessibilityLabel("Clear search")
             }
         }
-        .padding(.horizontal, 18)
-        .background(
-            RoundedRectangle(cornerRadius: HandyVisualTokens.Radius.search, style: .continuous)
-                .fill(Color.white.opacity(isFocused ? 0.068 : 0.044))
-                .overlay(
-                    LinearGradient(
-                        colors: [Color.white.opacity(isFocused ? 0.066 : 0.040), Color.clear],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: HandyVisualTokens.Radius.search, style: .continuous))
-                )
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: HandyVisualTokens.Radius.search, style: .continuous)
-                .stroke(Color.white.opacity(isFocused ? 0.25 : 0.085), lineWidth: 1)
-        )
-        .shadow(color: HandyVisualTokens.Colors.accentPrimary.opacity(isFocused ? 0.08 : 0), radius: isFocused ? 12 : 0)
+        .padding(.horizontal, 4)
         .animation(.timingCurve(0.16, 1, 0.3, 1, duration: 0.18), value: isFocused)
     }
 
@@ -69,19 +62,36 @@ struct PillRowView: View {
     @ObservedObject var state: PanelState
 
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(ContextFilter.allCases) { filter in
-                PillControl(
-                    label: filter.label,
-                    count: state.count(for: filter),
-                    selected: state.activeFilter == filter
-                ) {
-                    state.setFilter(filter)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(ContextFilter.allCases) { filter in
+                    PillControl(
+                        label: filter.label,
+                        count: state.count(for: filter),
+                        selected: state.activeFilter == filter
+                    ) {
+                        state.setFilter(filter)
+                    }
+                    .accessibilityAddTraits(state.activeFilter == filter ? .isSelected : [])
                 }
-                .accessibilityAddTraits(state.activeFilter == filter ? .isSelected : [])
             }
+            .padding(.horizontal, 1)
+            .frame(height: 34, alignment: .center)
         }
-        .frame(height: 30, alignment: .center)
+        .scrollClipDisabled(false)
+        .frame(height: 34, alignment: .leading)
+        .mask(
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: .black, location: 0.035),
+                    .init(color: .black, location: 0.965),
+                    .init(color: .clear, location: 1)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
     }
 }
 
@@ -100,16 +110,16 @@ private struct PillControl: View {
                     .font(.handyDisplay(size: 10, weight: .semibold))
                     .padding(.horizontal, 5)
                     .frame(minWidth: 18, minHeight: 18)
-                    .background(selected ? Color.black.opacity(0.10) : Color.white.opacity(0.07))
+                    .background(selected ? Color.black.opacity(0.12) : Color.white.opacity(0.055))
                     .clipShape(Capsule())
             }
             .font(.handyDisplay(size: 12))
             .foregroundStyle(selected ? Color(hex: "#151716") : HandyVisualTokens.Colors.textPrimary.opacity(0.68))
-            .padding(.horizontal, 9)
-            .frame(height: 30)
-            .background(selected ? HandyVisualTokens.Colors.textPrimary.opacity(0.92) : Color.white.opacity(0.045))
+            .padding(.horizontal, 10)
+            .frame(height: 32)
+            .background(selected ? HandyVisualTokens.Colors.textPrimary.opacity(0.92) : Color.white.opacity(0.058))
             .clipShape(Capsule())
-            .overlay(Capsule().stroke(selected ? Color.white.opacity(0.42) : Color.white.opacity(0.10), lineWidth: 1))
+            .overlay(Capsule().stroke(selected ? Color.white.opacity(0.38) : Color.white.opacity(0.10), lineWidth: 1))
             .shadow(color: Color.white.opacity(selected ? 0.055 : 0), radius: selected ? 10 : 0, x: 0, y: 2)
             .contentShape(Capsule())
         }
