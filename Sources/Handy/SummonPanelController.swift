@@ -48,8 +48,8 @@ final class SummonPanelController {
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false
-        panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        panel.level = .screenSaver
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
         panel.hidesOnDeactivate = false
         panel.animationBehavior = .none
         panel.delegate = panel
@@ -238,13 +238,14 @@ final class SummonPanelController {
         )
 
         panel.setFrame(placement.frame, display: false)
+        panel.level = .screenSaver
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
         updateRootView()
         overlayController.show(anchor: anchor, placement: placement)
         installEventMonitors()
 
         panel.alphaValue = 0
         panel.orderFrontRegardless()
-        NSApp.activate(ignoringOtherApps: true)
         panel.makeKey()
         state.prepareForOpen()
 
@@ -545,7 +546,7 @@ final class HandyPanel: NSPanel, NSWindowDelegate {
     init(contentRect: NSRect) {
         super.init(
             contentRect: contentRect,
-            styleMask: [.borderless, .fullSizeContentView],
+            styleMask: [.borderless, .fullSizeContentView, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )

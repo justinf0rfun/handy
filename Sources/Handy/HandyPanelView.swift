@@ -208,7 +208,7 @@ struct HandyPanelView: View {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(Color.white.opacity(0.115), lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.22), radius: 24, x: 0, y: 14)
+        .shadow(color: Color.black.opacity(0.16), radius: 20, x: 14, y: 12)
     }
 }
 

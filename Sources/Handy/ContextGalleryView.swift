@@ -84,6 +84,8 @@ struct ContextGalleryView: View {
         for id in state.selectedIDs.sorted() {
             hasher.combine(id)
         }
+        hasher.combine(state.copiedItemID)
+        hasher.combine(state.draggingItemID)
         hasher.combine(state.activeItemID)
         hasher.combine(state.demoHoverID)
         hasher.combine(state.revealContent)
@@ -124,8 +126,11 @@ struct ContextCardView: View {
     @State private var hovered = false
 
     private var accent: Color { Color(hex: item.accent) }
-    private var cardEngaged: Bool { hovered || selected || active || demoHovered }
-    private var toolbarVisible: Bool { hovered || demoHovered }
+    private var copied: Bool { state.copiedItemID == item.id }
+    private var dragging: Bool { state.draggingItemID == item.id }
+    private var cardEngaged: Bool { hovered || selected || active || demoHovered || dragging }
+    private var toolbarVisible: Bool { (hovered || demoHovered) && !dragging }
+    private var typeBadgeVisible: Bool { hovered || demoHovered || copied || dragging }
     private var hoverAnimation: Animation? {
         reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: 0.16)
     }
@@ -137,16 +142,38 @@ struct ContextCardView: View {
             ZStack(alignment: .topLeading) {
                 cardContent(metrics)
 
-                TypeIconBadge(item: item, selected: selected, size: metrics.typeIconSize)
-                    .frame(width: metrics.typeIconSize, height: metrics.typeIconSize)
-                    .position(x: metrics.typeIconCenter.x, y: metrics.typeIconCenter.y)
+                ContextCardDragBridge(
+                    item: item,
+                    onClick: {
+                        state.copyItem(item.id)
+                    },
+                    onDragBegan: {
+                        hovered = false
+                        state.beginDraggingItem(item.id)
+                    },
+                    onDragEnded: { succeeded in
+                        hovered = false
+                        state.finishDraggingItem(item.id, succeeded: succeeded)
+                    }
+                )
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .zIndex(2.5)
+
+                TypeIconBadge(item: item, selected: selected, copied: copied, size: metrics.typeIconSize)
+                    .frame(width: metrics.badgeWidth(copied: copied), height: metrics.typeIconSize)
+                    .offset(x: metrics.chromeInset, y: metrics.chromeInset)
+                    .opacity(typeBadgeVisible ? 1 : 0)
+                    .scaleEffect(typeBadgeVisible ? 1 : 0.92, anchor: .topLeading)
                     .zIndex(3)
+                    .allowsHitTesting(false)
+                    .animation(hoverAnimation, value: typeBadgeVisible)
 
                 CardSourceAgeRow(item: item, compact: metrics.isCompact)
                     .padding(.horizontal, metrics.footerHorizontalPadding)
                     .padding(.bottom, metrics.footerBottomInset)
                     .frame(width: proxy.size.width, height: proxy.size.height, alignment: .bottomLeading)
                     .zIndex(2)
+                    .allowsHitTesting(false)
 
                 CardToolbarView(item: item, selected: selected, visible: toolbarVisible, state: state, reduceMotion: reduceMotion)
                     .position(x: metrics.toolbarCenter.x, y: metrics.toolbarCenter.y)
@@ -155,7 +182,7 @@ struct ContextCardView: View {
             .frame(width: proxy.size.width, height: proxy.size.height)
             .contentShape(RoundedRectangle(cornerRadius: HandyVisualTokens.Radius.card, style: .continuous))
             .onTapGesture {
-                state.toggleSelection(item.id)
+                state.copyItem(item.id)
             }
         }
         .focusable(true)
@@ -168,7 +195,7 @@ struct ContextCardView: View {
         )
         .overlay(selectedAffordance)
         .shadow(color: shadowStyle.color, radius: shadowStyle.radius, x: shadowStyle.x, y: shadowStyle.y)
-        .opacity(revealed ? 1 : 0)
+        .opacity(revealed ? (dragging ? 0.72 : 1) : 0)
         .scaleEffect(reduceMotion ? 1 : (revealed ? 1 : 0.982), anchor: .center)
         .animation(reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: 0.28).delay(Double(revealIndex) * 0.035), value: revealed)
         .animation(reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: 0.18), value: selected)
@@ -420,6 +447,11 @@ private struct ContextCardMetrics {
 
     var typeIconSize: CGFloat {
         isCompact ? 30 : 36
+    }
+
+    func badgeWidth(copied: Bool) -> CGFloat {
+        if copied { return isCompact ? 88 : 102 }
+        return typeIconSize
     }
 
     var typeIconCenter: CGPoint {
@@ -996,27 +1028,41 @@ private struct CardSourceAgeRow: View {
 private struct TypeIconBadge: View {
     let item: ContextItem
     let selected: Bool
+    let copied: Bool
     let size: CGFloat
 
     var body: some View {
-        Image(systemName: symbolName)
-            .font(.system(size: max(12, size * 0.42), weight: .semibold))
-            .foregroundStyle(Color.white.opacity(0.86))
-            .frame(width: size, height: size)
-            .background(
-                RoundedRectangle(cornerRadius: max(9, size * 0.33), style: .continuous)
-                    .fill(Color.white.opacity(selected ? 0.18 : 0.12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: max(9, size * 0.33), style: .continuous)
-                            .fill(Color(hex: item.accent).opacity(selected ? 0.18 : 0.10))
-                    )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: max(9, size * 0.33), style: .continuous)
-                    .stroke(Color.white.opacity(selected ? 0.30 : 0.16), lineWidth: 1)
-            )
-            .shadow(color: Color(hex: item.accent).opacity(selected ? 0.30 : 0.12), radius: selected ? 10 : 6, x: 0, y: 3)
-            .frame(width: size, height: size)
+        Group {
+            if copied {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: max(12, size * 0.36), weight: .bold))
+                    Text("Copied")
+                        .font(.handyDisplay(size: max(12, size * 0.36), weight: .bold))
+                }
+                .foregroundStyle(HandyVisualTokens.Colors.textPrimary.opacity(0.96))
+                .padding(.horizontal, 11)
+                .frame(height: size)
+            } else {
+                Image(systemName: symbolName)
+                    .font(.system(size: max(12, size * 0.42), weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(0.86))
+                    .frame(width: size, height: size)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: max(9, size * 0.33), style: .continuous)
+                .fill(Color.white.opacity(copied ? 0.17 : (selected ? 0.18 : 0.12)))
+                .overlay(
+                    RoundedRectangle(cornerRadius: max(9, size * 0.33), style: .continuous)
+                        .fill(Color(hex: item.accent).opacity(copied ? 0.24 : (selected ? 0.18 : 0.10)))
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: max(9, size * 0.33), style: .continuous)
+                .stroke(Color.white.opacity(copied ? 0.24 : (selected ? 0.30 : 0.16)), lineWidth: 1)
+        )
+        .shadow(color: Color(hex: item.accent).opacity(copied ? 0.24 : (selected ? 0.30 : 0.12)), radius: copied || selected ? 10 : 6, x: 0, y: 3)
         .accessibilityHidden(true)
     }
 

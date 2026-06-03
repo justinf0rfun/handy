@@ -39,6 +39,7 @@ final class ClipboardCaptureService {
         guard pasteboard.changeCount != lastChangeCount else { return }
         lastChangeCount = pasteboard.changeCount
 
+        guard !HandyPasteboardWriter.isInternalCopy(pasteboard) else { return }
         guard let item = captureCurrentPasteboardItem() else { return }
 
         do {
@@ -54,7 +55,6 @@ final class ClipboardCaptureService {
 
     private func captureCurrentPasteboardItem() -> ContextItem? {
         let source = currentSource()
-        guard source.name != "Handy" else { return nil }
 
         if let item = captureFileURL(source: source) {
             return item

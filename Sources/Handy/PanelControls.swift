@@ -83,8 +83,7 @@ struct PillRowView: View {
         .mask(
             LinearGradient(
                 stops: [
-                    .init(color: .clear, location: 0),
-                    .init(color: .black, location: 0.035),
+                    .init(color: .black, location: 0),
                     .init(color: .black, location: 0.965),
                     .init(color: .clear, location: 1)
                 ],

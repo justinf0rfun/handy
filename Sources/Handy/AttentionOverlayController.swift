@@ -4,17 +4,18 @@ import SwiftUI
 
 @MainActor
 final class AttentionOverlayController {
-    private let window: NSWindow
+    private let window: NSPanel
     private let hosting: NSHostingController<AttentionOverlayView>
 
     init() {
         hosting = NSHostingController(rootView: AttentionOverlayView(anchor: .zero, attach: .zero))
-        window = NSWindow(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: false)
+        window = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        window.canHide = false
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = false
         window.ignoresMouseEvents = true
-        window.level = .floating
+        window.level = .screenSaver
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
         window.contentViewController = hosting
         window.alphaValue = 0
@@ -28,6 +29,8 @@ final class AttentionOverlayController {
             height: abs(anchor.y - placement.attachPoint.y) + 28
         )
         window.setFrame(bounds, display: true)
+        window.level = .screenSaver
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
         hosting.rootView = AttentionOverlayView(
             anchor: CGPoint(x: anchor.x - bounds.minX, y: bounds.maxY - anchor.y),
             attach: CGPoint(x: placement.attachPoint.x - bounds.minX, y: bounds.maxY - placement.attachPoint.y)

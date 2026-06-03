@@ -37,6 +37,8 @@ final class PanelState: ObservableObject {
     @Published var invalidComposeNudge = 0
     @Published var selectionPulseID: String?
     @Published var selectionPulseToken = 0
+    @Published var copiedItemID: String?
+    @Published var draggingItemID: String?
 
     var onRequestClose: (() -> Void)?
     var onFocusChange: ((HandyFocusTarget) -> Void)?
@@ -45,6 +47,7 @@ final class PanelState: ObservableObject {
     var onLoadMore: (() -> Void)?
 
     private let focusCoordinator = FocusCoordinator()
+    private var clearCopiedItemTask: Task<Void, Never>?
 
     @Published private(set) var items: [ContextItem]
     @Published private(set) var hasMoreItems = false
@@ -85,6 +88,12 @@ final class PanelState: ObservableObject {
             filterCounts = counts
         }
         selectedIDs = selectedIDs.intersection(Set(items.map(\.id)))
+        if let copiedItemID, !items.contains(where: { $0.id == copiedItemID }) {
+            self.copiedItemID = nil
+        }
+        if let draggingItemID, !items.contains(where: { $0.id == draggingItemID }) {
+            self.draggingItemID = nil
+        }
         clearDraft()
         closePeek()
         resetGalleryScroll()
@@ -125,6 +134,9 @@ final class PanelState: ObservableObject {
     func markClosed() {
         isVisible = false
         revealContent = false
+        copiedItemID = nil
+        draggingItemID = nil
+        clearCopiedItemTask?.cancel()
         requestFocus(.search)
     }
 
@@ -245,6 +257,47 @@ final class PanelState: ObservableObject {
         toggleSelection(activeItemID)
     }
 
+    func copyItem(_ id: String) {
+        guard let item = items.first(where: { $0.id == id }) else { return }
+        activeItemID = id
+        guard HandyPasteboardWriter.copy(item) else { return }
+        markItemCopied(id)
+    }
+
+    func beginDraggingItem(_ id: String) {
+        activeItemID = id
+        draggingItemID = id
+        clearCopiedItemTask?.cancel()
+        copiedItemID = nil
+    }
+
+    func finishDraggingItem(_ id: String, succeeded: Bool) {
+        if draggingItemID == id {
+            draggingItemID = nil
+        }
+        guard succeeded else { return }
+        markItemCopied(id)
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 160_000_000)
+            guard !Task.isCancelled else { return }
+            self?.onRequestClose?()
+        }
+    }
+
+    private func markItemCopied(_ id: String) {
+        copiedItemID = id
+        clearCopiedItemTask?.cancel()
+        clearCopiedItemTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 1_400_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                if self?.copiedItemID == id {
+                    self?.copiedItemID = nil
+                }
+            }
+        }
+    }
+
     func openActivePeek() {
         guard !activeItemID.isEmpty else { return }
         openPeek(activeItemID)
@@ -273,9 +326,7 @@ final class PanelState: ObservableObject {
 
     func copyDraft() {
         guard let draft else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(draft, forType: .string)
-        copied = true
+        copied = HandyPasteboardWriter.copyString(draft)
         requestFocus(.draftCopy)
     }
 
@@ -360,6 +411,9 @@ final class PanelState: ObservableObject {
         invalidComposeNudge = 0
         selectionPulseID = nil
         selectionPulseToken = 0
+        copiedItemID = nil
+        draggingItemID = nil
+        clearCopiedItemTask?.cancel()
         requestFocus(.search)
     }
 
